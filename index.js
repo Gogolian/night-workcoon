@@ -21,36 +21,43 @@ const proxy = http.createServer((req, res) => {
   req.on('end', () => {
     const requestBody = Buffer.concat(requestBodyChunks);
 
-    const recordedResponse = findRecordedResponse(req, requestBody);
-    if (recordedResponse) {
-        if (config.logging) {
-            console.log('--- Serving from record ---');
-        }
-        
-        // Filter out potentially problematic headers and ensure CORS headers are set
-        const filteredHeaders = { ...recordedResponse.responseHeaders };
-        
-        // Remove headers that can cause issues when replaying
-        delete filteredHeaders['connection'];
-        delete filteredHeaders['keep-alive'];
-        delete filteredHeaders['transfer-encoding'];
-        delete filteredHeaders['content-encoding'];
-        
-        // Ensure CORS headers are present
-        filteredHeaders['access-control-allow-origin'] = filteredHeaders['access-control-allow-origin'] || '*';
-        filteredHeaders['access-control-allow-methods'] = filteredHeaders['access-control-allow-methods'] || 'GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS';
-        filteredHeaders['access-control-allow-headers'] = filteredHeaders['access-control-allow-headers'] || 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With';
-        filteredHeaders['access-control-allow-credentials'] = filteredHeaders['access-control-allow-credentials'] || 'true';
-        
-        res.writeHead(recordedResponse.statusCode, filteredHeaders);
-        res.end(recordedResponse.response);
-        return;
+    const fullUrl = `${target.protocol}//${target.hostname}:${target.port || (target.protocol === 'https:' ? 443 : 80)}${req.url}`;
+
+    // In recordOnly mode, skip serving from cache and always make fresh requests
+    if (!config.recordOnlyMode) {
+      const recordedResponse = findRecordedResponse(req, requestBody);
+      if (recordedResponse) {
+          if (config.logLevel >= 1) {
+              console.log(`served from cache ${recordedResponse.statusCode} ${req.method} ${fullUrl}`);
+          }
+          
+          // Filter out potentially problematic headers and ensure CORS headers are set
+          const filteredHeaders = { ...recordedResponse.responseHeaders };
+          
+          // Remove headers that can cause issues when replaying
+          delete filteredHeaders['connection'];
+          delete filteredHeaders['keep-alive'];
+          delete filteredHeaders['transfer-encoding'];
+          delete filteredHeaders['content-encoding'];
+          
+          // Ensure CORS headers are present
+          filteredHeaders['access-control-allow-origin'] = filteredHeaders['access-control-allow-origin'] || '*';
+          filteredHeaders['access-control-allow-methods'] = filteredHeaders['access-control-allow-methods'] || 'GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS';
+          filteredHeaders['access-control-allow-headers'] = filteredHeaders['access-control-allow-headers'] || 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With';
+          filteredHeaders['access-control-allow-credentials'] = filteredHeaders['access-control-allow-credentials'] || 'true';
+          
+          res.writeHead(recordedResponse.statusCode, filteredHeaders);
+          res.end(recordedResponse.response);
+          return;
+      }
+    } else if (config.logLevel >= 1) {
+      console.log(`record-only mode: making fresh request ${req.method} ${fullUrl}`);
     }
 
     // If in offline mode and no recorded response found, return 404
     if (config.offlineMode) {
-        if (config.logging) {
-            console.log('--- Offline mode: No recorded response found ---');
+        if (config.logLevel >= 1) {
+            console.log(`offline mode: not found 404 ${req.method} ${fullUrl}`);
         }
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not found in recorded data (offline mode)' }));
@@ -78,9 +85,20 @@ const proxy = http.createServer((req, res) => {
 
       proxyRes.on('end', () => {
         const responseBody = Buffer.concat(responseBodyChunks);
-        if (config.logging) {
+        
+        if (config.logLevel >= 1) {
+            console.log(`proxied ${proxyRes.statusCode} ${req.method} ${fullUrl}`);
+        }
+        
+        if (config.logLevel >= 3 && ['POST', 'PATCH', 'PUT'].includes(req.method.toUpperCase())) {
+            console.log(`Request body: ${requestBody.toString()}`);
+            console.log(`Response body: ${responseBody.toString()}`);
+        }
+        
+        if (config.logLevel >= 4) {
             logProxyDetails(req, requestBody, proxyRes, responseBody);
         }
+        
         record(req, requestBody, proxyRes, responseBody);
         
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
@@ -89,19 +107,21 @@ const proxy = http.createServer((req, res) => {
     });
 
     proxyReq.on('error', (e) => {
-      if (config.logging) {
-        console.error(`problem with request: ${e.message}`);
+      if (config.logLevel >= 1) {
+        console.error(`proxy error: ${e.message} for ${req.method} ${fullUrl}`);
       }
       
       // If target server is unreachable, try to serve from recorded data as fallback
       if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND') {
-        if (recordedResponse) {
-          if (config.logging) {
-            console.log('--- Target server unreachable, serving from record as fallback ---');
+        // Try to find recorded response again as fallback
+        const fallbackResponse = findRecordedResponse(req, requestBody);
+        if (fallbackResponse) {
+          if (config.logLevel >= 1) {
+            console.log(`served from cache as fallback ${fallbackResponse.statusCode} ${req.method} ${fullUrl}`);
           }
           
           // Filter out potentially problematic headers and ensure CORS headers are set
-          const filteredHeaders = { ...recordedResponse.responseHeaders };
+          const filteredHeaders = { ...fallbackResponse.responseHeaders };
           
           // Remove headers that can cause issues when replaying
           delete filteredHeaders['connection'];
@@ -115,8 +135,8 @@ const proxy = http.createServer((req, res) => {
           filteredHeaders['access-control-allow-headers'] = filteredHeaders['access-control-allow-headers'] || 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With';
           filteredHeaders['access-control-allow-credentials'] = filteredHeaders['access-control-allow-credentials'] || 'true';
           
-          res.writeHead(recordedResponse.statusCode, filteredHeaders);
-          res.end(recordedResponse.response);
+          res.writeHead(fallbackResponse.statusCode, filteredHeaders);
+          res.end(fallbackResponse.response);
           return;
         }
       }
@@ -131,14 +151,14 @@ const proxy = http.createServer((req, res) => {
 });
 
 proxy.on('connect', (req, clientSocket, head) => {
-    if (config.logging) {
-        console.log(`CONNECT request for: ${req.url}`);
+    if (config.logLevel >= 1) {
+        console.log(`CONNECT ${req.url}`);
     }
     
     // If in offline mode, reject CONNECT requests since we can't serve HTTPS from recorded data
     if (config.offlineMode) {
-        if (config.logging) {
-            console.log('--- Offline mode: CONNECT request rejected ---');
+        if (config.logLevel >= 1) {
+            console.log(`offline mode: CONNECT rejected ${req.url}`);
         }
         clientSocket.write('HTTP/1.1 503 Service Unavailable\r\n' +
                           'Content-Type: text/plain\r\n' +
@@ -161,8 +181,8 @@ proxy.on('connect', (req, clientSocket, head) => {
     });
   
     serverSocket.on('error', (e) => {
-      if (config.logging) {
-        console.error(`Problem with server socket: ${e.message}`);
+      if (config.logLevel >= 1) {
+        console.error(`CONNECT server socket error: ${e.message}`);
       }
       clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n' +
                         'Content-Type: text/plain\r\n' +
@@ -172,8 +192,8 @@ proxy.on('connect', (req, clientSocket, head) => {
     });
 
     clientSocket.on('error', (e) => {
-        if (config.logging) {
-            console.error(`Problem with client socket: ${e.message}`);
+        if (config.logLevel >= 1) {
+            console.error(`CONNECT client socket error: ${e.message}`);
         }
         serverSocket.end();
     });

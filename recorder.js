@@ -48,11 +48,17 @@ export function findRecordedResponse(req, requestBody) {
 }
 
 export function record(req, requestBody, proxyRes, responseBody) {
-    if (proxyRes.statusCode >= 500) {
-        if (config.logging) {
-            console.log(`Skipping recording for 5xx response: ${proxyRes.statusCode}`);
+    // In recordOnly mode, record everything (including 5xx responses for overwriting)
+    // In normal mode, skip 5xx responses
+    if (!config.recordOnlyMode && proxyRes.statusCode >= 500) {
+        if (config.logLevel >= 1) {
+            console.log(`skipping recording for 5xx response: ${proxyRes.statusCode}`);
         }
         return;
+    }
+
+    if (config.recordOnlyMode && config.logLevel >= 2) {
+        console.log(`recording/overwriting response: ${proxyRes.statusCode}`);
     }
 
     const method = req.method.toUpperCase();
@@ -88,6 +94,7 @@ export function record(req, requestBody, proxyRes, responseBody) {
         currentLevel[bodyKey] = {};
     }
     
+    // In recordOnly mode, we always overwrite existing records
     currentLevel[bodyKey].response = responseBody.toString();
     currentLevel[bodyKey].responseHeaders = proxyRes.headers;
     currentLevel[bodyKey].statusCode = proxyRes.statusCode;

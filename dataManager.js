@@ -7,7 +7,7 @@ let debounceTimer;
 
 export function loadRecordedData() {
     if (existsSync(dataFilePath)) {
-        if (config.logging) {
+        if (config.logLevel >= 2) {
             console.log('Loading existing recorded data...');
         }
         const fileContent = readFileSync(dataFilePath, 'utf-8');
@@ -19,12 +19,12 @@ export function loadRecordedData() {
                 console.error('Could not parse recorded_data.json, starting fresh.', e);
             }
         } else {
-            if (config.logging) {
+            if (config.logLevel >= 2) {
                 console.log('recorded_data.json is empty, starting fresh.');
             }
         }
     } else {
-        if (config.logging) {
+        if (config.logLevel >= 2) {
             console.log('No existing recorded data found, starting fresh.');
         }
     }
@@ -33,11 +33,11 @@ export function loadRecordedData() {
 export function saveDataDebounced() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-        if (config.logging) {
+        if (config.logLevel >= 3) {
             console.log('Debounced save triggered. Saving recorded data...');
         }
         writeFileSync(dataFilePath, JSON.stringify(recordedData, null, 2));
-        if (config.logging) {
+        if (config.logLevel >= 3) {
             console.log('Recorded data saved.');
         }
     }, 2000);
@@ -45,11 +45,11 @@ export function saveDataDebounced() {
 
 export function forceSave() {
     clearTimeout(debounceTimer);
-    if (config.logging) {
+    if (config.logLevel >= 2) {
         console.log('Force saving recorded data...');
     }
     writeFileSync(dataFilePath, JSON.stringify(recordedData, null, 2));
-    if (config.logging) {
+    if (config.logLevel >= 2) {
         console.log('Recorded data saved.');
     }
 }
