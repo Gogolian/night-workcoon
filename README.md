@@ -137,23 +137,6 @@ npm start
 # All responses get cached automatically
 ```
 
-### Testing
-```bash
-# Record responses during integration tests
-npm test:integration
-
-# Switch to offline mode for unit tests
-# Edit config.json: "offlineMode": true
-npm test:unit
-```
-
-### Offline Development
-```bash
-# Enable offline mode in config.json
-# Work with cached responses when your API server is down
-npm start
-```
-
 ## Environment
 
 - **Node.js**: ES Modules (type: "module")
