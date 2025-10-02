@@ -56,12 +56,14 @@ const proxy = http.createServer((req, res) => {
   if (req.url && req.url.startsWith('/__api')) {
     // Basic API endpoints
     if (req.method === 'GET' && req.url === '/__api/recordings') {
+      try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} requested recordings list`); } catch(e){}
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(recordedData));
       return;
     }
 
     if (req.method === 'POST' && req.url === '/__api/save') {
+      try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} requested save`); } catch(e){}
       forceSave();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ saved: true }));
@@ -69,6 +71,7 @@ const proxy = http.createServer((req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/__api/clear') {
+      try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} requested clear ALL recordings`); } catch(e){}
       // Clear in-memory recordedData
       for (const k of Object.keys(recordedData)) delete recordedData[k];
       saveDataDebounced(recordedData);
@@ -100,6 +103,7 @@ const proxy = http.createServer((req, res) => {
       };
       // expose skip5xx if present
       safe.skip5xx = !!config.skip5xx;
+      try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} requested config`); } catch(e){}
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(safe));
       return;
@@ -123,6 +127,8 @@ const proxy = http.createServer((req, res) => {
           if (typeof body.skip5xx === 'boolean') config.skip5xx = body.skip5xx;
           // Persist to disk
           writeFileSync(path.join(process.cwd(), 'config.json'), JSON.stringify(config, null, 2));
+          try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} updated config: ${JSON.stringify(body)}`); } catch(e){}
+          // propagate runtime option to recorder
           // propagate runtime option to recorder
           try { setRuntimeOptions({ skip5xx: !!config.skip5xx }); } catch (e) { /* ignore */ }
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -137,6 +143,7 @@ const proxy = http.createServer((req, res) => {
 
     if (req.method === 'POST' && req.url === '/__api/start') {
       acceptingTraffic = true;
+      try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} started proxy (acceptingTraffic=true)`); } catch(e){}
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ acceptingTraffic }));
       return;
@@ -144,6 +151,7 @@ const proxy = http.createServer((req, res) => {
 
     if (req.method === 'POST' && req.url === '/__api/stop') {
       acceptingTraffic = false;
+      try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} stopped proxy (acceptingTraffic=false)`); } catch(e){}
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ acceptingTraffic }));
       return;
@@ -173,6 +181,7 @@ const proxy = http.createServer((req, res) => {
           if (!map.hasOwnProperty(response)) return respondBad();
           // bump recordedAt so it becomes the newest
           map[response].recordedAt = new Date().toISOString();
+          try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} selected variant for ${method} ${pathParts ? pathParts.join('/') : ''} (${queryKey}/${bodyKey})`); } catch(e){}
           saveDataDebounced(recordedData);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true }));
@@ -207,6 +216,7 @@ const proxy = http.createServer((req, res) => {
           const map = node[bk];
           if (!map.hasOwnProperty(response)) return respondBad();
           delete map[response];
+          try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} deleted variant for ${method} ${pathParts ? pathParts.join('/') : ''} (${queryKey}/${bodyKey})`); } catch(e){}
           // If map empty, delete the body key
           if (Object.keys(map).length === 0) delete node[bk];
           saveDataDebounced(recordedData);
@@ -248,6 +258,7 @@ const proxy = http.createServer((req, res) => {
           recordObj.response = newResponse;
           map[newKey] = recordObj;
           delete map[response];
+          try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} updated recording for ${method} ${pathParts ? pathParts.join('/') : ''} (${queryKey}/${bodyKey})`); } catch(e){}
           // if map empty, delete body key
           if (Object.keys(map).length === 0) delete node[bk];
           saveDataDebounced(recordedData);
