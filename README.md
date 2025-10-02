@@ -198,3 +198,43 @@ Mode switch: the Admin UI exposes a single mode switch that toggles between two 
 - Record-only: the proxy always forwards requests to the target and records responses (useful for capturing new data)
 
 The UI reflects mode state and persists the corresponding flags to `config.json`.
+
+## Admin UI (extended)
+
+The admin UI has been extended with additional tools for managing recordings and importing external traces.
+
+- URL: http://localhost:8079/__admin
+- Main features:
+  - Navigable recordings tree with details and parsed-response editor (save edits persist to disk).
+  - Start / Stop proxy controls (toggle traffic acceptance) and a runtime config panel.
+  - Import Contract: upload a JSON contract which will be mapped into recorded data.
+  - Add HTTP Archive: paste a HAR entry or HAR log, parse and preview mapped import items, edit them and import into recorded data.
+  - Add Record: manually create a single recorded entry (method, path, request body, response, status) from the UI.
+  - Save Environment: save the whole in-memory `recordedData` to a named file under `data/` (e.g. `env_backup.json`).
+  - Load Environment: upload a recorded-data JSON file to replace the current in-memory `recordedData` and persist it.
+  - Status filtering, skip-recording-5xx option, expand/collapse controls, and variant selection UI for choosing which recorded variant to serve.
+
+These additions are intentionally lightweight and use vanilla JavaScript in the admin UI. Many dialogs use a reusable modal helper so workflow is consistent across import, add, save and load actions.
+
+Server API endpoints added (useful for automation or scripting):
+
+- GET `/__api/recordings` — returns the full `recordedData` object.
+- POST `/__api/save` — force-save current recorded data to disk (`recorded_data.json`).
+- POST `/__api/clear` — clear all in-memory recordings and persist the empty state.
+- POST `/__api/import-contract` — import an array of items shaped { httpMethod, uri, request, httpStatus, response }.
+- POST `/__api/add-record` — add a single record (payload: { method, url, request, httpStatus, response }).
+- POST `/__api/save-env` — save the current `recordedData` to a file under `data/` (payload: { filename }).
+- POST `/__api/load-env` — replace current `recordedData` with posted JSON (payload: { data }).
+- POST `/__api/recording/select` — mark a variant selected by structured path (method/pathParts/queryKey/bodyKey/response) so it becomes primary.
+- POST `/__api/recording/select-by-path` — mark a variant selected by full path array (the last element is the response key).
+- POST `/__api/recording/update` — update a recorded variant's response (replaces the variant key and persists).
+- DELETE `/__api/recording` — delete a specific recorded variant via structured body.
+- GET/POST `/__api/config` — read and update runtime config (port, targetUrl, offlineMode, recordOnlyMode, skip5xx, logLevel).
+- GET `/__api/status`, POST `/__api/start`, POST `/__api/stop` — runtime controls for traffic acceptance.
+
+Security / safety notes:
+
+- The Save Environment endpoint only accepts simple filenames (no path separators or '..') to avoid path traversal; files are written under the `data/` directory.
+- Loading an environment via `/__api/load-env` will replace the in-memory recorded data. Use with caution — consider exporting first with Save Environment.
+
+If you'd like alternative behaviors (for example listing server-side environment files, or loading environments from the server filesystem instead of uploading), I can add a server-side file browser endpoint and a corresponding UI picker.

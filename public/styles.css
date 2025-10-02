@@ -1,8 +1,9 @@
 :root{font-family:Segoe UI,Roboto,Arial;margin:0}
 body{background:#f7f8fb;color:#111}
 #app{max-width:1100px;margin:18px auto;padding:12px}
-header{display:flex;align-items:center;justify-content:space-between}
+header{display:flex;align-items:center;justify-content:space-between; flex-direction: column}
 header h1{font-size:18px;margin:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;margin-top:22px}
 .controls button,.controls a{margin-left:8px}
 .mapping-inline{color:#444;margin-top:10px;}
 .controls label.small{margin-left:8px;font-size:13px}
@@ -19,7 +20,7 @@ header h1{font-size:18px;margin:0}
 .switch-label{margin-left:8px;font-size:13px}
 main{display:flex;gap:12px;margin-top:12px}
 #recordings{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:70vh;overflow:auto; width: 50%}
-#detail{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:70vh;overflow:auto}
+#detail{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:30vh;overflow:auto}
 #parsedRecord{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:70vh;overflow:auto}
 .node{padding-left:8px;border-left:1px dashed #eee;margin:6px 0}
 .node-header{display:flex;align-items:center;gap:8px}
@@ -39,3 +40,22 @@ main{display:flex;gap:12px;margin-top:12px}
 /* modal */
 .controls button#expandAll,.controls button#collapseAll{margin-left:8px}
 .detailsSection{display:flex;gap:12px;flex-direction: column; width: 50%;}
+
+/* reusable modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10000}
+.modal{background:#fff;border-radius:8px;padding:16px;max-width:720px;width:90%;box-shadow:0 10px 30px rgba(0,0,0,0.25)}
+.modal h3{margin-top:0}
+.modal .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+
+/* accordion for variant groups */
+#variantAccordions{max-width:1100px;margin:8px auto}
+.accordion{background:#fff;border-radius:6px;padding:8px;margin-bottom:8px;border:1px solid #eee}
+.accordion .title{font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.variant-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-top:1px dashed #f0f0f0}
+.variant-row:first-of-type{border-top:none}
+.variant-loader{width:16px;height:16px;border-radius:50%;border:2px solid #ccc;border-top-color:#4caf50;animation:spin 1s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.variant-checkbox{margin-right:8px}
+
+/* tooltip for showing full variant response on hover */
+#variantTooltip{position:fixed;z-index:9999;max-width:60vw;max-height:60vh;overflow:auto;background:#222;color:#fff;padding:8px;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.25);font-family:monospace;white-space:pre-wrap;display:none}

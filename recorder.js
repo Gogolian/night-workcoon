@@ -73,8 +73,8 @@ export function findRecordedResponse(req, requestBody) {
                 continue;
             }
             try {
-                const tNew = new Date(rec.recordedAt).getTime();
-                const tOld = new Date(newest.recordedAt).getTime();
+                const tNew = new Date(rec.modifiedAt || rec.recordedAt).getTime();
+                const tOld = new Date(newest.modifiedAt || newest.recordedAt).getTime();
                 if (!isNaN(tNew) && tNew > tOld) newest = rec;
             } catch (err) {
                 // ignore parsing errors
@@ -177,6 +177,11 @@ export function record(req, requestBody, proxyRes, responseBody) {
         requestHeaders: req.headers,
         recordedAt: new Date().toISOString()
     };
+
+    // track when the record was last modified (edits via UI)
+    newRecord.modifiedAt = newRecord.recordedAt;
+    // createdAt represents the original creation timestamp (full date/time)
+    newRecord.createdAt = newRecord.recordedAt;
 
     map[responseStr] = newRecord;
     saveDataDebounced(recordedData);

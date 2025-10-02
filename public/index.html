@@ -28,6 +28,21 @@
         <button id="save">Save Now</button>
         <button id="clear">Clear All</button>
         <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
+          <button id="importContract">Import Contract</button>
+        </label>
+        <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
+          <button id="addRecord">Add record</button>
+        </label>
+        <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
+          <button id="addHar">Add HTTP Archive</button>
+        </label>
+        <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
+          <button id="saveEnv">Save Environment</button>
+        </label>
+        <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
+          <button id="loadEnv">Load Environment</button>
+        </label>
+        <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
           <input type="checkbox" id="skip5xx"> Skip recording 5xx responses
         </label>
         <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
@@ -38,6 +53,7 @@
         <a id="export" download="recorded_data.json">Export</a>
       </div>
     </header>
+  <section id="variantAccordions" style="margin:12px 0"></section>
     <main>
       <section id="recordings">Loading...</section>
       <div class="detailsSection">
@@ -56,11 +72,17 @@
             <button id="parsedCancel">Cancel</button>
           </div>
         </div>
+        <div class="detail-block" id="variantsBlock" style="display:none;">
+          <h3>Variants</h3>
+          <div id="variantsList">(select a body bucket to view variants)</div>
+        </div>
       </section>
       </div>
     </main>
   </div>
   <script src="/__admin/app.js"></script>
+  <!-- reusable modal container -->
+  <div id="modalRoot" style="display:none"></div>
  
 </body>
 </html>
