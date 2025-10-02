@@ -183,3 +183,18 @@ The proxy automatically handles CORS headers. If you still encounter issues, che
 ---
 
 Made with ❤️ for developers who need a simple, powerful proxy solution.
+
+## Admin UI
+
+A lightweight web-based admin UI is available to inspect and manage recorded responses.
+
+- URL: http://localhost:8079/__admin
+- Features: view recordings as a navigable tree, view JSON details, save recorded data immediately, clear all recordings, and export the recorded JSON.
+
+Use the "Save Now" button to force a write of `data/recorded_data.json`. If the proxy is configured to listen on a different port, replace `8079` with your configured port.
+
+Mode switch: the Admin UI exposes a single mode switch that toggles between two modes:
+- Offline: the proxy serves only cached responses (network requests are disabled)
+- Record-only: the proxy always forwards requests to the target and records responses (useful for capturing new data)
+
+The UI reflects mode state and persists the corresponding flags to `config.json`.

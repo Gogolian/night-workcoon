@@ -41,10 +41,44 @@ export function findRecordedResponse(req, requestBody) {
 
     const bodyKey = requestBodyString || 'no_body';
     if (!currentLevel[bodyKey]) return null;
-    
-    if (!currentLevel[bodyKey].hasOwnProperty('response')) return null;
-    
-    return currentLevel[bodyKey];
+
+    const entry = currentLevel[bodyKey];
+    // Support multiple formats:
+    // - New map format: { responseBodyString: record, ... }
+    // - Single legacy object: { response, ... }
+    if (!entry) return null;
+
+    if (typeof entry === 'object') {
+        // detect map-of-variants (keys are response strings)
+        const keys = Object.keys(entry);
+        if (keys.length === 0) return null;
+
+        // If the object looks like a single record (has 'response' prop), return it
+        if (entry.hasOwnProperty('response')) {
+            return entry;
+        }
+
+        // Otherwise treat as map-of-variants; pick the newest by recordedAt
+        let newest = null;
+        for (const k of keys) {
+            const rec = entry[k];
+            if (!rec) continue;
+            if (!newest) {
+                newest = rec;
+                continue;
+            }
+            try {
+                const tNew = new Date(rec.recordedAt).getTime();
+                const tOld = new Date(newest.recordedAt).getTime();
+                if (!isNaN(tNew) && tNew > tOld) newest = rec;
+            } catch (err) {
+                // ignore parsing errors
+            }
+        }
+        return newest;
+    }
+
+    return null;
 }
 
 export function record(req, requestBody, proxyRes, responseBody) {
@@ -90,14 +124,47 @@ export function record(req, requestBody, proxyRes, responseBody) {
     currentLevel = currentLevel[queryKey];
 
     const bodyKey = requestBodyString || 'no_body';
-    if (!currentLevel[bodyKey]) {
+    // initialize as map of variants (responseBodyString -> record)
+    if (!currentLevel[bodyKey] || typeof currentLevel[bodyKey] !== 'object') {
         currentLevel[bodyKey] = {};
     }
-    
-    // In recordOnly mode, we always overwrite existing records
-    currentLevel[bodyKey].response = responseBody.toString();
-    currentLevel[bodyKey].responseHeaders = proxyRes.headers;
-    currentLevel[bodyKey].statusCode = proxyRes.statusCode;
-    currentLevel[bodyKey].requestHeaders = req.headers;
+
+    // compute response string from raw response buffer
+    const responseBuf = Buffer.isBuffer(responseBody) ? responseBody : Buffer.from(responseBody);
+    const responseStr = responseBuf.toString();
+
+    // We'll store variants as a map keyed by the response body string:
+    // currentLevel[bodyKey] = { [responseBody]: record, ... }
+    // If existing value is an array (old format) or legacy object, migrate it to this map.
+    let map = currentLevel[bodyKey];
+    // If a legacy single-record object exists at this slot, migrate it into the map
+    if (map && typeof map === 'object' && map.hasOwnProperty('response')) {
+        // single legacy record -> migrate
+        const migrated = {};
+        migrated[map.response] = map;
+        map = migrated;
+        currentLevel[bodyKey] = map;
+    } else if (!map || typeof map !== 'object') {
+        map = {};
+        currentLevel[bodyKey] = map;
+    }
+
+    // If this response body already exists as a key, skip (dedupe by key)
+    if (map.hasOwnProperty(responseStr)) {
+        if (config.logLevel >= 3) {
+            console.log('Identical response already recorded (by response-body key); skipping.');
+        }
+        return;
+    }
+
+    const newRecord = {
+        response: responseStr,
+        responseHeaders: proxyRes.headers,
+        statusCode: proxyRes.statusCode,
+        requestHeaders: req.headers,
+        recordedAt: new Date().toISOString()
+    };
+
+    map[responseStr] = newRecord;
     saveDataDebounced(recordedData);
 }

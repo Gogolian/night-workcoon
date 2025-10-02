@@ -2,17 +2,221 @@ import http from 'http';
 import { URL } from 'url';
 import net from 'net';
 import { logProxyDetails } from './logger.js';
-import { readFileSync } from 'fs';
+import { readFileSync, createReadStream, statSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { record, findRecordedResponse } from './recorder.js';
 import { loadRecordedData, saveDataDebounced, forceSave } from './dataManager.js';
 import { recordedData } from './state.js';
+import path from 'path';
+
+function getMime(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.html': return 'text/html; charset=utf-8';
+    case '.js': return 'application/javascript; charset=utf-8';
+    case '.css': return 'text/css; charset=utf-8';
+    case '.json': return 'application/json; charset=utf-8';
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.svg': return 'image/svg+xml';
+    case '.txt': return 'text/plain; charset=utf-8';
+    default: return 'application/octet-stream';
+  }
+}
 
 loadRecordedData();
 
+// runtime control: whether proxy should accept/forward traffic
+let acceptingTraffic = true;
+
 const config = JSON.parse(readFileSync('./config.json'));
-const target = new URL(config.targetUrl);
+let target = new URL(config.targetUrl);
 
 const proxy = http.createServer((req, res) => {
+  // Serve admin UI and API under /__admin and /__api
+  if (req.url && req.url.startsWith('/__admin')) {
+    // Map /__admin to public/index.html, and /__admin/* to public/*
+    const rel = req.url === '/__admin' || req.url === '/__admin/' ? '/index.html' : req.url.replace('/__admin', '');
+    const filePath = path.join(process.cwd(), 'public', rel);
+    try {
+      const s = statSync(filePath);
+      res.writeHead(200, { 'Content-Type': getMime(filePath) });
+      createReadStream(filePath).pipe(res);
+      return;
+    } catch (e) {
+      res.writeHead(404);
+      res.end('Not found');
+      return;
+    }
+  }
+
+  if (req.url && req.url.startsWith('/__api')) {
+    // Basic API endpoints
+    if (req.method === 'GET' && req.url === '/__api/recordings') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(recordedData));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/__api/save') {
+      forceSave();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ saved: true }));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/__api/clear') {
+      // Clear in-memory recordedData
+      for (const k of Object.keys(recordedData)) delete recordedData[k];
+      saveDataDebounced(recordedData);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ cleared: true }));
+      return;
+    }
+
+    if (req.method === 'GET' && req.url === '/__api/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    if (req.method === 'GET' && req.url === '/__api/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ acceptingTraffic }));
+      return;
+    }
+
+    if (req.method === 'GET' && req.url === '/__api/config') {
+      // Return the current runtime config (only safe keys)
+      const safe = {
+        port: config.port,
+        targetUrl: config.targetUrl,
+        offlineMode: config.offlineMode,
+        recordOnlyMode: config.recordOnlyMode,
+        logLevel: config.logLevel
+      };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(safe));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/__api/config') {
+      // Read body
+      const bodyChunks = [];
+      req.on('data', (c) => bodyChunks.push(c));
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(bodyChunks).toString());
+          // Only allow toggling offlineMode and recordOnlyMode and targetUrl/logLevel
+          if (typeof body.offlineMode === 'boolean') config.offlineMode = body.offlineMode;
+          if (typeof body.recordOnlyMode === 'boolean') config.recordOnlyMode = body.recordOnlyMode;
+          if (typeof body.targetUrl === 'string') {
+            config.targetUrl = body.targetUrl;
+            try { target = new URL(config.targetUrl); } catch (e) { /* ignore invalid URL */ }
+          }
+          if (typeof body.logLevel === 'number') config.logLevel = body.logLevel;
+          // Persist to disk
+          writeFileSync(path.join(process.cwd(), 'config.json'), JSON.stringify(config, null, 2));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, config }));
+        } catch (e) {
+          res.writeHead(400);
+          res.end('Invalid body');
+        }
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/__api/start') {
+      acceptingTraffic = true;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ acceptingTraffic }));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/__api/stop') {
+      acceptingTraffic = false;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ acceptingTraffic }));
+      return;
+    }
+
+    // Select a specific recorded variant (move it to the end so it's served last)
+    if (req.method === 'POST' && req.url === '/__api/recording/select') {
+      const buf = [];
+      req.on('data', c => buf.push(c));
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(buf).toString());
+          const { method, pathParts, queryKey, bodyKey, response } = body;
+          let node = recordedData;
+          if (!node[method]) return respondBad();
+          node = node[method];
+          for (const p of (pathParts || [])) {
+            if (!node[p]) return respondBad();
+            node = node[p];
+          }
+          const qk = queryKey || 'no_query';
+          if (!node[qk]) return respondBad();
+          node = node[qk];
+          const bk = bodyKey || 'no_body';
+          if (!node[bk]) return respondBad();
+          const map = node[bk];
+          if (!map.hasOwnProperty(response)) return respondBad();
+          // bump recordedAt so it becomes the newest
+          map[response].recordedAt = new Date().toISOString();
+          saveDataDebounced(recordedData);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          respondBad();
+        }
+      });
+      function respondBad() { res.writeHead(400); res.end('Bad request'); }
+      return;
+    }
+
+    // Delete a specific recorded variant
+    if (req.method === 'DELETE' && req.url === '/__api/recording') {
+      const buf = [];
+      req.on('data', c => buf.push(c));
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(buf).toString());
+          const { method, pathParts, queryKey, bodyKey, response } = body;
+          let node = recordedData;
+          if (!node[method]) return respondBad();
+          node = node[method];
+          for (const p of (pathParts || [])) {
+            if (!node[p]) return respondBad();
+            node = node[p];
+          }
+          const qk = queryKey || 'no_query';
+          if (!node[qk]) return respondBad();
+          node = node[qk];
+          const bk = bodyKey || 'no_body';
+          if (!node[bk]) return respondBad();
+          const map = node[bk];
+          if (!map.hasOwnProperty(response)) return respondBad();
+          delete map[response];
+          // If map empty, delete the body key
+          if (Object.keys(map).length === 0) delete node[bk];
+          saveDataDebounced(recordedData);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          respondBad();
+        }
+      });
+      function respondBad() { res.writeHead(400); res.end('Bad request'); }
+      return;
+    }
+
+    res.writeHead(404);
+    res.end('API not found');
+    return;
+  }
   const requestBodyChunks = [];
   req.on('data', (chunk) => {
     requestBodyChunks.push(chunk);
@@ -20,6 +224,16 @@ const proxy = http.createServer((req, res) => {
 
   req.on('end', () => {
     const requestBody = Buffer.concat(requestBodyChunks);
+
+    // If runtime control has paused traffic, return 503 for proxied requests
+    if (!acceptingTraffic) {
+      if (config.logLevel >= 1) {
+        console.log(`proxy paused: rejecting ${req.method} ${req.url}`);
+      }
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Proxy is paused (acceptingTraffic=false)' }));
+      return;
+    }
 
     const fullUrl = `${target.protocol}//${target.hostname}:${target.port || (target.protocol === 'https:' ? 443 : 80)}${req.url}`;
 
@@ -201,6 +415,11 @@ proxy.on('connect', (req, clientSocket, head) => {
 
 proxy.listen(config.port, () => {
   console.log(`Proxy server listening on port ${config.port}, proxying to ${config.targetUrl}`);
+  try {
+    console.log(`UI started at: http://localhost:${config.port}/__admin`);
+  } catch (e) {
+    // ignore
+  }
 });
 
 process.on('SIGINT', () => {

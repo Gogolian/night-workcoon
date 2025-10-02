@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Night Workcoon - Admin</title>
+  <link rel="stylesheet" href="/__admin/styles.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div><h1>Night Workcoon — Recordings</h1>
+      <div class="mapping-inline"><strong>Mapping:</strong> <span id="mappingText">...</span></div>
+      </div>
+      <div class="controls">
+        <div class="switch">
+          <label class="toggle-switch">
+            <input type="checkbox" id="modeToggle">
+            <span class="slider"></span>
+          </label>
+          <span class="switch-label" id="modeLabel">Mode</span>
+        </div>
+        <br />
+        <button id="refresh">Refresh</button>
+        <button id="startStop">Stop</button>
+    <button id="expandAll">Expand All</button>
+    <button id="collapseAll">Collapse All</button>
+        <button id="save">Save Now</button>
+        <button id="clear">Clear All</button>
+        <a id="export" download="recorded_data.json">Export</a>
+      </div>
+    </header>
+    <main>
+      <section id="recordings">Loading...</section>
+      <div class="detailsSection">
+      <section id="detail">
+        <div class="detail-block">
+          <h3>Raw record</h3>
+          <pre id="detailJson">Select a recording to view details</pre>
+        </div>
+      </section>
+      <section id="parsedRecord">
+        <div class="detail-block">
+          <h3>Parsed response</h3>
+          <pre id="parsedJson">(click a recorded response to parse JSON here)</pre>
+        </div>
+      </section>
+      </div>
+    </main>
+  </div>
+  <script src="/__admin/app.js"></script>
+ 
+</body>
+</html>
