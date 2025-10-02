@@ -3,6 +3,11 @@ import { recordedData } from './state.js';
 import { readFileSync } from 'fs';
 
 const config = JSON.parse(readFileSync('./config.json'));
+let runtimeOptions = { skip5xx: !!config.skip5xx };
+
+export function setRuntimeOptions(opts = {}) {
+    if (typeof opts.skip5xx === 'boolean') runtimeOptions.skip5xx = opts.skip5xx;
+}
 
 function getPath(url) {
     try {
@@ -84,6 +89,14 @@ export function findRecordedResponse(req, requestBody) {
 export function record(req, requestBody, proxyRes, responseBody) {
     // In recordOnly mode, record everything (including 5xx responses for overwriting)
     // In normal mode, skip 5xx responses
+    // Respect runtime skip5xx regardless of recordOnlyMode
+    if (runtimeOptions.skip5xx && proxyRes.statusCode >= 500) {
+        if (config.logLevel >= 1) {
+            console.log(`skipping recording for 5xx response due to skip5xx flag: ${proxyRes.statusCode}`);
+        }
+        return;
+    }
+
     if (!config.recordOnlyMode && proxyRes.statusCode >= 500) {
         if (config.logLevel >= 1) {
             console.log(`skipping recording for 5xx response: ${proxyRes.statusCode}`);

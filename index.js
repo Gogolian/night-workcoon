@@ -4,7 +4,7 @@ import net from 'net';
 import { logProxyDetails } from './logger.js';
 import { readFileSync, createReadStream, statSync } from 'fs';
 import { writeFileSync } from 'fs';
-import { record, findRecordedResponse } from './recorder.js';
+import { record, findRecordedResponse, setRuntimeOptions } from './recorder.js';
 import { loadRecordedData, saveDataDebounced, forceSave } from './dataManager.js';
 import { recordedData } from './state.js';
 import path from 'path';
@@ -32,6 +32,8 @@ let acceptingTraffic = true;
 
 const config = JSON.parse(readFileSync('./config.json'));
 let target = new URL(config.targetUrl);
+// propagate initial runtime options to recorder
+try { setRuntimeOptions({ skip5xx: !!config.skip5xx }); } catch (e) { /* ignore */ }
 
 const proxy = http.createServer((req, res) => {
   // Serve admin UI and API under /__admin and /__api
@@ -96,6 +98,8 @@ const proxy = http.createServer((req, res) => {
         recordOnlyMode: config.recordOnlyMode,
         logLevel: config.logLevel
       };
+      // expose skip5xx if present
+      safe.skip5xx = !!config.skip5xx;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(safe));
       return;
@@ -116,8 +120,11 @@ const proxy = http.createServer((req, res) => {
             try { target = new URL(config.targetUrl); } catch (e) { /* ignore invalid URL */ }
           }
           if (typeof body.logLevel === 'number') config.logLevel = body.logLevel;
+          if (typeof body.skip5xx === 'boolean') config.skip5xx = body.skip5xx;
           // Persist to disk
           writeFileSync(path.join(process.cwd(), 'config.json'), JSON.stringify(config, null, 2));
+          // propagate runtime option to recorder
+          try { setRuntimeOptions({ skip5xx: !!config.skip5xx }); } catch (e) { /* ignore */ }
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true, config }));
         } catch (e) {
@@ -213,6 +220,94 @@ const proxy = http.createServer((req, res) => {
       return;
     }
 
+    // Update a specific recorded variant's response
+    if (req.method === 'POST' && req.url === '/__api/recording/update') {
+      const buf = [];
+      req.on('data', c => buf.push(c));
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(buf).toString());
+          const { method, pathParts, queryKey, bodyKey, response, newResponse } = body;
+          let node = recordedData;
+          if (!node[method]) return respondBad();
+          node = node[method];
+          for (const p of (pathParts || [])) {
+            if (!node[p]) return respondBad();
+            node = node[p];
+          }
+          const qk = queryKey || 'no_query';
+          if (!node[qk]) return respondBad();
+          node = node[qk];
+          const bk = bodyKey || 'no_body';
+          if (!node[bk]) return respondBad();
+          const map = node[bk];
+          if (!map.hasOwnProperty(response)) return respondBad();
+          // replace the key: create new entry and delete old
+          const recordObj = map[response];
+          const newKey = newResponse;
+          recordObj.response = newResponse;
+          map[newKey] = recordObj;
+          delete map[response];
+          // if map empty, delete body key
+          if (Object.keys(map).length === 0) delete node[bk];
+          saveDataDebounced(recordedData);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          respondBad();
+        }
+      });
+      function respondBad() { res.writeHead(400); res.end('Bad request'); }
+      return;
+    }
+
+    // Delete a node at an arbitrary path. Body: { path: [method, ...keys] }
+    if (req.method === 'POST' && req.url === '/__api/recording/delete') {
+      const buf = [];
+      req.on('data', c => buf.push(c));
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(buf).toString());
+          const pathArr = body && Array.isArray(body.path) ? body.path : null;
+          if (!pathArr || pathArr.length === 0) return respondBad();
+
+          // Build parents array to allow cleanup
+          const parents = [recordedData];
+          let cur = recordedData;
+          for (let i = 0; i < pathArr.length; i++) {
+            const k = pathArr[i];
+            if (!cur.hasOwnProperty(k)) return respondBad();
+            cur = cur[k];
+            parents.push(cur);
+          }
+
+          // Delete last key from its parent
+          const lastKey = pathArr[pathArr.length - 1];
+          const parentOfLast = parents[parents.length - 2];
+          delete parentOfLast[lastKey];
+
+          // Cleanup empty parents upward (do not remove the root recordedData object)
+          for (let i = parents.length - 2; i >= 1; i--) {
+            const key = pathArr[i - 1];
+            const parent = parents[i - 1];
+            if (parent[key] && typeof parent[key] === 'object' && Object.keys(parent[key]).length === 0) {
+              delete parent[key];
+            } else {
+              break;
+            }
+          }
+
+          saveDataDebounced(recordedData);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          respondBad();
+        }
+      });
+      function respondBad() { res.writeHead(400); res.end('Bad request'); }
+      return;
+    }
+
     res.writeHead(404);
     res.end('API not found');
     return;
@@ -259,6 +354,8 @@ const proxy = http.createServer((req, res) => {
           filteredHeaders['access-control-allow-methods'] = filteredHeaders['access-control-allow-methods'] || 'GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS';
           filteredHeaders['access-control-allow-headers'] = filteredHeaders['access-control-allow-headers'] || 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With';
           filteredHeaders['access-control-allow-credentials'] = filteredHeaders['access-control-allow-credentials'] || 'true';
+          // Mark responses served from recorded data
+          filteredHeaders['fromNightMock'] = filteredHeaders['fromNightMock'] || 'true';
           
           res.writeHead(recordedResponse.statusCode, filteredHeaders);
           res.end(recordedResponse.response);
@@ -348,6 +445,8 @@ const proxy = http.createServer((req, res) => {
           filteredHeaders['access-control-allow-methods'] = filteredHeaders['access-control-allow-methods'] || 'GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS';
           filteredHeaders['access-control-allow-headers'] = filteredHeaders['access-control-allow-headers'] || 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With';
           filteredHeaders['access-control-allow-credentials'] = filteredHeaders['access-control-allow-credentials'] || 'true';
+          // Mark responses served from recorded data (fallback)
+          filteredHeaders['fromNightMock'] = filteredHeaders['fromNightMock'] || 'true';
           
           res.writeHead(fallbackResponse.statusCode, filteredHeaders);
           res.end(fallbackResponse.response);

@@ -7,7 +7,7 @@ async function fetchRecordings() {
 function renderTree(container, data) {
   container.innerHTML = '';
 
-  function makeNode(key, value, path=key) {
+  function makeNode(key, value, path=[key]) {
     const el = document.createElement('div');
     el.className = 'node collapsed'; // start collapsed
 
@@ -34,6 +34,13 @@ function renderTree(container, data) {
   badge.className = 'badge';
   badge.textContent = '';
   header.appendChild(badge);
+
+  // delete button for this node
+  const delBtn = document.createElement('button');
+  delBtn.textContent = 'Delete';
+  delBtn.style.marginLeft = '8px';
+  delBtn.className = 'node-delete';
+  header.appendChild(delBtn);
 
     el.appendChild(header);
 
@@ -82,13 +89,96 @@ function renderTree(container, data) {
       }
       // remove any click handler on detailJson (parsing done automatically)
       document.getElementById('detailJson').onclick = null;
+
+      // store current selection info for saving edits
+      try {
+        // Path is an array: [method, ...pathParts, queryKey, bodyKey, maybe responseKey]
+        if (!Array.isArray(path) || path.length === 0) {
+          currentSelection = null;
+        } else {
+          const method = path[0];
+          // If this node itself is a legacy single-record object (has 'response'),
+          // then the path ends at the bodyKey. Otherwise, the last element is the response key.
+          let queryKey = 'no_query';
+          let bodyKey = 'no_body';
+          let responseVal = null;
+          let pathParts = [];
+
+          if (value && typeof value === 'object' && value.hasOwnProperty('response')) {
+            // Need to decide if this is a variant leaf (the last path element is the response key)
+            const lastPath = path[path.length - 1];
+            const isVariantLeaf = (typeof lastPath === 'string' && lastPath === value.response);
+            if (isVariantLeaf) {
+              // variant: [method, ...pathParts, queryKey, bodyKey, responseKey]
+              if (path.length >= 4) {
+                queryKey = path[path.length - 3];
+                bodyKey = path[path.length - 2];
+                responseVal = path[path.length - 1];
+                pathParts = path.slice(1, path.length - 3);
+              } else {
+                // fallback
+                pathParts = path.slice(1, path.length - 1);
+                responseVal = path[path.length - 1];
+              }
+            } else {
+              // legacy single-record located at bodyKey: [method, ...pathParts, queryKey, bodyKey]
+              if (path.length >= 3) {
+                queryKey = path[path.length - 2];
+                bodyKey = path[path.length - 1];
+                pathParts = path.slice(1, path.length - 2);
+              } else if (path.length === 2) {
+                queryKey = path[1];
+                bodyKey = 'no_body';
+                pathParts = [];
+              } else {
+                pathParts = [];
+              }
+              responseVal = value.response;
+            }
+          } else {
+            // assume path ends with: ..., queryKey, bodyKey, responseKey
+            if (path.length >= 4) {
+              queryKey = path[path.length - 3];
+              bodyKey = path[path.length - 2];
+              responseVal = path[path.length - 1];
+              pathParts = path.slice(1, path.length - 3);
+            } else if (path.length === 3) {
+              // [method, queryKey, bodyKey]
+              queryKey = path[1];
+              bodyKey = path[2];
+              responseVal = (value && value.response) ? value.response : null;
+              pathParts = [];
+            } else {
+              pathParts = [];
+            }
+          }
+
+          currentSelection = { method, pathParts, queryKey, bodyKey, response: responseVal };
+        }
+      } catch (e) {
+        currentSelection = null;
+      }
     });
 
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
+    delBtn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (!confirm('Delete this node and its children?')) return;
+      try {
+        const res = await fetch('/__api/recording/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ path }) });
+        if (!res.ok) return alert('Delete failed');
+        alert('Deleted');
+        refresh();
+      } catch (e) {
+        alert('Delete failed: ' + e.message);
+      }
+    });
+
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
       const children = document.createElement('div');
       children.className = 'children';
       for (const k of Object.keys(value)) {
-        children.appendChild(makeNode(k, value[k], path + '/' + k));
+        const childPath = Array.isArray(path) ? path.concat(k) : [path, k];
+        children.appendChild(makeNode(k, value[k], childPath));
       }
       el.appendChild(children);
 
@@ -129,7 +219,7 @@ function renderTree(container, data) {
   }
 
   for (const k of Object.keys(data)) {
-    container.appendChild(makeNode(k, data[k], k));
+    container.appendChild(makeNode(k, data[k], [k]));
   }
 }
 
@@ -248,6 +338,8 @@ async function refreshConfigUI() {
     modeToggle.checked = !!cfg.offlineMode;
     if (cfg.offlineMode) modeLabel.textContent = 'Offline';
     else modeLabel.textContent = 'Record-only';
+    const skip5xx = document.getElementById('skip5xx');
+    if (skip5xx) skip5xx.checked = !!cfg.skip5xx;
   } catch (e) {
     document.getElementById('mappingText').textContent = 'Could not load config';
   }
@@ -263,5 +355,41 @@ document.getElementById('modeToggle').addEventListener('change', async (ev) => {
   } catch (e) { alert('Failed to update mode'); }
 });
 
+const skip5xxEl = document.getElementById('skip5xx');
+if (skip5xxEl) skip5xxEl.addEventListener('change', async (ev) => {
+  try {
+    await updateConfig({ skip5xx: !!ev.target.checked });
+    await refreshConfigUI();
+  } catch (e) { alert('Failed to update config'); }
+});
+
 // Initial config load
 refreshConfigUI();
+
+// Selection tracking variable (method/pathParts/queryKey/bodyKey/response)
+let currentSelection = null;
+
+// parsed save/cancel handlers
+const parsedSaveBtn = document.getElementById('parsedSave');
+const parsedCancelBtn = document.getElementById('parsedCancel');
+if (parsedCancelBtn) parsedCancelBtn.addEventListener('click', () => {
+  // reload recordings to reset parsed text to source
+  refresh();
+});
+
+if (parsedSaveBtn) parsedSaveBtn.addEventListener('click', async () => {
+  if (!currentSelection || !currentSelection.response) return alert('No selection to save');
+  const newText = document.getElementById('parsedJson').value;
+  // try to validate JSON
+  try {
+    const parsed = JSON.parse(newText);
+    // send update to server; server will persist
+    const payload = { ...currentSelection, newResponse: JSON.stringify(parsed) };
+    const res = await fetch('/__api/recording/update', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) return alert('Failed to save');
+    alert('Saved');
+    refresh();
+  } catch (e) {
+    return alert('Edited response is not valid JSON');
+  }
+});
