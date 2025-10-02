@@ -248,7 +248,14 @@ async function refresh() {
   section.textContent = 'Loading...';
   try {
     const data = await fetchRecordings();
-    renderTree(section, data);
+    // Apply status filter if present
+    const statusFilterInput = document.getElementById('statusFilter');
+    let filtered = data;
+    if (statusFilterInput && statusFilterInput.value && statusFilterInput.value.trim()) {
+      const allowed = parseStatusFilter(statusFilterInput.value);
+      filtered = filterByStatus(data, allowed);
+    }
+    renderTree(section, filtered);
     // update export link
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -260,7 +267,51 @@ async function refresh() {
   }
 }
 
+function parseStatusFilter(input) {
+  // Accept formats like: "200,201,400-499"
+  const parts = input.split(',').map(p => p.trim()).filter(Boolean);
+  const set = new Set();
+  for (const p of parts) {
+    if (p.includes('-')) {
+      const [a,b] = p.split('-').map(x => parseInt(x,10)).filter(n => !isNaN(n));
+      if (!isNaN(a) && !isNaN(b) && a <= b) {
+        for (let i=a;i<=b;i++) set.add(i);
+      }
+    } else {
+      const n = parseInt(p,10);
+      if (!isNaN(n)) set.add(n);
+    }
+  }
+  return set;
+}
+
+function filterByStatus(data, allowedSet) {
+  // Recursively prune the recordedData tree, keeping branches that contain at least one record with status in allowedSet
+  function prune(node) {
+    if (!node || typeof node !== 'object') return null;
+    // If this node looks like a single record
+    if (node.hasOwnProperty('response') && node.hasOwnProperty('statusCode')) {
+      return allowedSet.has(node.statusCode) ? node : null;
+    }
+    const out = Array.isArray(node) ? [] : {};
+    let kept = false;
+    for (const k of Object.keys(node)) {
+      const child = node[k];
+      const pruned = prune(child);
+      if (pruned !== null) {
+        out[k] = pruned;
+        kept = true;
+      }
+    }
+    return kept ? out : null;
+  }
+  const pr = prune(data);
+  return pr || {};
+}
+
 document.getElementById('refresh').addEventListener('click', refresh);
+document.getElementById('applyStatusFilter').addEventListener('click', refresh);
+document.getElementById('clearStatusFilter').addEventListener('click', () => { document.getElementById('statusFilter').value = ''; refresh(); });
 const startStopBtn = document.getElementById('startStop');
 
 async function fetchStatus() {

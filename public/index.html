@@ -30,6 +30,11 @@
         <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
           <input type="checkbox" id="skip5xx"> Skip recording 5xx responses
         </label>
+        <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
+          <input type="text" id="statusFilter" placeholder="Status filter e.g. 200,201,400-499" style="width:220px"> 
+          <button id="applyStatusFilter">Apply</button>
+          <button id="clearStatusFilter">Clear</button>
+        </label>
         <a id="export" download="recorded_data.json">Export</a>
       </div>
     </header>
