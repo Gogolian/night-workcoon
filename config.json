@@ -10,12 +10,12 @@
     {
       "enabled": true,
       "pattern": "POST /bff/cms/labels",
-      "action": "Pass Only"
+      "action": "Return Mock"
     },
     {
       "enabled": true,
       "pattern": "*/feature-flag/*",
-      "action": "Return Mock"
+      "action": "Pass Only"
     }
   ],
   "fallback": "Pass Only"
