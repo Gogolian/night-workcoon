@@ -258,13 +258,16 @@ const proxy = http.createServer((req, res) => {
           const body = JSON.parse(Buffer.concat(buf).toString());
           const filename = typeof body.filename === 'string' ? body.filename : null;
           const rules = Array.isArray(body.rules) ? body.rules : null;
+          const fallback = typeof body.fallback === 'string' ? body.fallback : null;
           if (!filename || !rules) return respondBad();
           // prevent path traversal
           if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) return respondBad();
           const rulesDir = path.join(process.cwd(), 'data', 'rules');
           if (!existsSync(rulesDir)) mkdirSync(rulesDir, { recursive: true });
           const outPath = path.join(rulesDir, filename.endsWith('.json') ? filename : (filename + '.json'));
-          writeFileSync(outPath, JSON.stringify(rules, null, 2));
+          // persist both rules and fallback
+          const payload = { rules, fallback: fallback || 'Return Mock' };
+          writeFileSync(outPath, JSON.stringify(payload, null, 2));
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true, saved: path.relative(process.cwd(), outPath) }));
         } catch (e) {
@@ -272,6 +275,58 @@ const proxy = http.createServer((req, res) => {
         }
       });
       function respondBad() { res.writeHead(400); res.end('Bad request'); }
+      return;
+    }
+
+    // List saved rules files in data/rules
+    if (req.method === 'GET' && req.url === '/__api/rules/list') {
+      try {
+        const rulesDir = path.join(process.cwd(), 'data', 'rules');
+        if (!existsSync(rulesDir)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify([]));
+          return;
+        }
+        const files = readFileSync(rulesDir) ? [] : [];
+      } catch (e) {
+        // fallback to fs.readdir
+      }
+      try {
+        const rulesDir = path.join(process.cwd(), 'data', 'rules');
+        const files = [];
+        if (existsSync(rulesDir)) {
+          const dirents = require('fs').readdirSync(rulesDir, { withFileTypes: true });
+          for (const d of dirents) {
+            if (d.isFile() && d.name.endsWith('.json')) files.push(d.name);
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(files));
+      } catch (e) {
+        res.writeHead(500); res.end('Error');
+      }
+      return;
+    }
+
+    // Load a saved rules file from data/rules by filename query param
+    if (req.method === 'GET' && req.url && req.url.startsWith('/__api/rules/load')) {
+      try {
+        const u = new URL(req.url, 'http://localhost');
+        const filename = u.searchParams.get('filename');
+        if (!filename) { res.writeHead(400); res.end('filename required'); return; }
+        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) { res.writeHead(400); res.end('Invalid filename'); return; }
+        const rulesDir = path.join(process.cwd(), 'data', 'rules');
+        const filePath = path.join(rulesDir, filename.endsWith('.json') ? filename : (filename + '.json'));
+        if (!existsSync(filePath)) { res.writeHead(404); res.end('Not found'); return; }
+        const txt = readFileSync(filePath, 'utf8');
+        // validate JSON parse
+        let parsed = null;
+        try { parsed = JSON.parse(txt); } catch (e) { res.writeHead(500); res.end('Invalid JSON'); return; }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(parsed));
+      } catch (e) {
+        res.writeHead(500); res.end('Error');
+      }
       return;
     }
 
