@@ -249,6 +249,32 @@ const proxy = http.createServer((req, res) => {
       return;
     }
 
+    // Save rules to a file under data/rules: { filename, rules }
+    if (req.method === 'POST' && req.url === '/__api/rules/save') {
+      const buf = [];
+      req.on('data', c => buf.push(c));
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(buf).toString());
+          const filename = typeof body.filename === 'string' ? body.filename : null;
+          const rules = Array.isArray(body.rules) ? body.rules : null;
+          if (!filename || !rules) return respondBad();
+          // prevent path traversal
+          if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) return respondBad();
+          const rulesDir = path.join(process.cwd(), 'data', 'rules');
+          if (!existsSync(rulesDir)) mkdirSync(rulesDir, { recursive: true });
+          const outPath = path.join(rulesDir, filename.endsWith('.json') ? filename : (filename + '.json'));
+          writeFileSync(outPath, JSON.stringify(rules, null, 2));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, saved: path.relative(process.cwd(), outPath) }));
+        } catch (e) {
+          respondBad();
+        }
+      });
+      function respondBad() { res.writeHead(400); res.end('Bad request'); }
+      return;
+    }
+
     // Save environment to a file under data/: { filename }
     if (req.method === 'POST' && req.url === '/__api/save-env') {
       const buf = [];
