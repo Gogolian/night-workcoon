@@ -69,6 +69,10 @@ main{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
 @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 .variant-checkbox{margin-right:8px}
 
+/* clickable info area on variant rows */
+.variant-info{flex:1;cursor:pointer;padding:3px;border-radius:4px}
+.variant-info:hover{background:#f6fbff}
+
 /* tooltip for showing full variant response on hover */
 #variantTooltip{position:fixed;z-index:9999;max-width:60vw;max-height:60vh;overflow:auto;background:#222;color:#fff;padding:8px;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.25);font-family:monospace;white-space:pre-wrap;display:none}
 
