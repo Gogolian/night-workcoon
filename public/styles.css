@@ -98,6 +98,10 @@ header h1{font-size:18px;margin:0}
 #variantAccordions{max-width:var(--nwc-content-width);margin:8px auto}
 .accordion{background:var(--panel-bg);border-radius:6px;padding:8px;margin-bottom:8px;border:1px solid var(--border)}
 
+/* static group blocks for variants when wrapped under a persistent header */
+.variant-group{background:var(--panel-bg);border-radius:6px;padding:8px;margin-bottom:8px;border:1px solid var(--border)}
+.variant-subtitle{font-weight:600;margin-bottom:6px;color:var(--text)}
+
 /* Inputs/selects/textareas in dark mode */
 input[type="text"], input[type="number"], textarea, select {
 	background: rgba(255,255,255,0.02);
