@@ -2,7 +2,7 @@ import http from 'http';
 import { URL } from 'url';
 import net from 'net';
 import { logProxyDetails } from './logger.js';
-import { readFileSync, createReadStream, statSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, createReadStream, statSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from 'fs';
 import { record, findRecordedResponse, setRuntimeOptions } from './recorder.js';
 import { loadRecordedData, saveDataDebounced, forceSave } from './dataManager.js';
 import { recordedData } from './state.js';
@@ -282,20 +282,9 @@ const proxy = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/__api/rules/list') {
       try {
         const rulesDir = path.join(process.cwd(), 'data', 'rules');
-        if (!existsSync(rulesDir)) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify([]));
-          return;
-        }
-        const files = readFileSync(rulesDir) ? [] : [];
-      } catch (e) {
-        // fallback to fs.readdir
-      }
-      try {
-        const rulesDir = path.join(process.cwd(), 'data', 'rules');
         const files = [];
         if (existsSync(rulesDir)) {
-          const dirents = require('fs').readdirSync(rulesDir, { withFileTypes: true });
+          const dirents = readdirSync(rulesDir, { withFileTypes: true });
           for (const d of dirents) {
             if (d.isFile() && d.name.endsWith('.json')) files.push(d.name);
           }
@@ -327,6 +316,28 @@ const proxy = http.createServer((req, res) => {
       } catch (e) {
         res.writeHead(500); res.end('Error');
       }
+      return;
+    }
+
+    // Delete saved rules file: { filename }
+    if (req.method === 'POST' && req.url === '/__api/rules/delete') {
+      const buf = [];
+      req.on('data', c => buf.push(c));
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(buf).toString());
+          const filename = typeof body.filename === 'string' ? body.filename : null;
+          if (!filename) return respondBad();
+          if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) return respondBad();
+          const rulesDir = path.join(process.cwd(), 'data', 'rules');
+          const filePath = path.join(rulesDir, filename.endsWith('.json') ? filename : (filename + '.json'));
+          if (!existsSync(filePath)) return respondBad();
+          unlinkSync(filePath);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) { respondBad(); }
+      });
+      function respondBad() { res.writeHead(400); res.end('Bad request'); }
       return;
     }
 

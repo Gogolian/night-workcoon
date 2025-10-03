@@ -79,3 +79,17 @@ main{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
 .rules-list .rule-row h2{font-size:12px;margin:0 4px;color:#333}
 .rules-list .rule-row select{padding:6px}
 .rules-list .rule-row .remove-rule{background:transparent;border:1px solid #ddd;color:#a00;padding:6px;border-radius:6px}
+
+/* Rule set list rows used in Load/Save modals */
+.rules-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer}
+.rules-row:last-child{border-bottom:none}
+.rules-row .rules-row-name{font-family:monospace;flex:1}
+.rules-row .rules-row-meta{color:#666;font-size:12px;margin-left:8px}
+.rules-row:hover{background:#f0f8ff}
+
+/* Toast notifications */
+.toast-container{position:fixed;right:16px;bottom:16px;z-index:20000;display:flex;flex-direction:column;gap:8px}
+.toast{background:#222;color:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.2);min-width:160px}
+.toast.success{background:#1e7e34}
+.toast.error{background:#c82333}
+.toast.info{background:#0069d9}
