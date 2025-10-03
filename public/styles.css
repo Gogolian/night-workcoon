@@ -18,7 +18,7 @@ header h1{font-size:18px;margin:0}
 .toggle-switch input:checked + .slider:before{transform:translateX(20px)}
 .toggle-switch input:not(:checked) + .slider{background:#e53935}
 .switch-label{margin-left:8px;font-size:13px}
-#main{ /* removed empty rule placeholder */ }
+#main{ /* placeholder removed */ }
 /* Make main flexible and allow wrapping so panels stack on narrow screens */
 main{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
 #recordings{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:70vh;overflow:auto; width: 50%}
@@ -71,3 +71,11 @@ main{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
 
 /* tooltip for showing full variant response on hover */
 #variantTooltip{position:fixed;z-index:9999;max-width:60vw;max-height:60vh;overflow:auto;background:#222;color:#fff;padding:8px;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,0.25);font-family:monospace;white-space:pre-wrap;display:none}
+
+/* Rules manager */
+.rules-manager h3{font-size:14px;margin:0}
+.rules-list .rule-row{display:flex;justify-content: space-around;gap:18px;align-items:center;padding:8px 24px;border:1px solid #e6e6e6;border-radius:6px;background:#fafafa}
+.rules-list .rule-row input[type="text"]{flex-grow: 1;}
+.rules-list .rule-row h2{font-size:12px;margin:0 4px;color:#333}
+.rules-list .rule-row select{padding:6px}
+.rules-list .rule-row .remove-rule{background:transparent;border:1px solid #ddd;color:#a00;padding:6px;border-radius:6px}

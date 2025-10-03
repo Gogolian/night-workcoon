@@ -52,6 +52,30 @@
     </header>
   <section id="variantAccordions" style="margin:12px 0"></section>
     <main>
+      <!-- Rules manager UI -->
+      <div id="rulesManager" class="rules-manager" style="width: 100%;margin:12px 0;padding:8px;border:1px dashed #e5e7eb;border-radius:6px;background:#fff">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <button id="loadRules">Load Rules Set</button>
+          <button id="saveRules">Save Rules Set</button>
+        </div>
+        <div id="rulesList" class="rules-list" style="display:flex;flex-direction:column;gap:8px">
+          <!-- Rule rows will be injected here -->
+        </div>
+        <div style="margin-top:12px; display: flex; justify-content: center;">
+          <button id="addRule">Add Rule</button>
+        </div>
+        <div id="fallbackSection" style="margin-top:12px">
+          <div style="display:flex;justify-content: end;gap:18px;align-items:center;padding:8px 24px;border:1px solid #e6e6e6;border-radius:6px;background:#fafafa">
+            <label style="font-size:13px; font-weight: bold; flex-grow: 1;">If no rule matches:</label>
+            <label style="font-size:13px; font-weight: bold;">ELSE:</label>
+            <select id="fallbackAction">
+              <option>Return Mock</option>
+              <option>Pass Only</option>
+              <option>Pass + Record</option>
+            </select>
+          </div>
+        </div>
+      </div>
       <div id="filters" style="display:flex;gap:12px;align-items:center;margin:8px 0">
         <div style="display:inline-flex;gap:6px;align-items:center">
           <input type="text" id="statusFilter" placeholder="Status filter e.g. 200,201,400-499" style="width:220px"> 
