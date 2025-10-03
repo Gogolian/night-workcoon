@@ -4,5 +4,6 @@
   "logLevel": 1,
   "skip5xx": true,
   "offlineMode": true,
-  "recordOnlyMode": false
+  "recordOnlyMode": false,
+  "acceptingTraffic": true
 }
