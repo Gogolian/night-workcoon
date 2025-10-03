@@ -133,7 +133,7 @@ input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.35); }
 .rules-list .rule-row{display:flex;justify-content: space-around;gap:18px;align-items:center;padding:8px 24px;border:1px solid var(--border);border-radius:6px;background:var(--panel-bg)}
 .rules-list .rule-row{display:flex;justify-content: space-around;gap:18px;align-items:center;padding:8px 24px;border:1px solid var(--border);border-radius:6px;background:var(--panel-bg)}
 .rules-list .rule-row input[type="text"]{flex-grow: 1;}
-.rules-list .rule-row h2{font-size:12px;margin:0 4px;color:#333}
+.rules-list .rule-row h2{font-size:12px;margin:0 4px;color:var(--text)}
 .rules-list .rule-row select{padding:6px}
 .rules-list .rule-row .remove-rule{background:transparent;border:0;color:var(--text);padding:6px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
 .rules-list .rule-row .remove-rule svg { color: var(--muted); }
