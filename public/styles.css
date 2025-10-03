@@ -18,7 +18,9 @@ header h1{font-size:18px;margin:0}
 .toggle-switch input:checked + .slider:before{transform:translateX(20px)}
 .toggle-switch input:not(:checked) + .slider{background:#e53935}
 .switch-label{margin-left:8px;font-size:13px}
-main{display:flex;gap:12px;margin-top:12px}
+#main{ /* removed empty rule placeholder */ }
+/* Make main flexible and allow wrapping so panels stack on narrow screens */
+main{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
 #recordings{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:70vh;overflow:auto; width: 50%}
 #detail{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:30vh;overflow:auto}
 #parsedRecord{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:70vh;overflow:auto}
@@ -38,8 +40,6 @@ main{display:flex;gap:12px;margin-top:12px}
 .level-body{background:#059669} /* green */
 .level-response{background:#9333ea} /* purple */
 
-.node-delete{background:transparent;border:1px solid #f88;color:#900;padding:2px 6px;border-radius:4px;font-size:12px;cursor:pointer}
-
 /* trimmed long keys */
 .short-key{max-width:30ch;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .detail-block{background:#fff;padding:8px;margin-top:8px;border-radius:6px}
@@ -48,6 +48,10 @@ main{display:flex;gap:12px;margin-top:12px}
 /* modal */
 .controls button#expandAll,.controls button#collapseAll{margin-left:8px}
 .detailsSection{display:flex;gap:12px;flex-direction: column; width: 50%;}
+
+/* Filters bar placed above recordings should take full width and wrap its children */
+#filters{width:100%;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+#filters > div{display:inline-flex;gap:6px;align-items:center}
 
 /* reusable modal */
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10000}

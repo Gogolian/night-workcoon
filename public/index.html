@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Night Workcoon - Admin</title>
   <link rel="stylesheet" href="/__admin/styles.css">
+  <link rel="stylesheet" href="/__admin/ui.css">
 </head>
 <body>
   <div id="app">
@@ -54,13 +55,9 @@
       <div id="filters" style="display:flex;gap:12px;align-items:center;margin:8px 0">
         <div style="display:inline-flex;gap:6px;align-items:center">
           <input type="text" id="statusFilter" placeholder="Status filter e.g. 200,201,400-499" style="width:220px"> 
-          <button id="applyStatusFilter">Apply</button>
-          <button id="clearStatusFilter">Clear</button>
         </div>
         <div style="display:inline-flex;gap:6px;align-items:center">
           <input type="text" id="pathFilter" placeholder="Path filter e.g. GET /bff/consultant or */consultant or /bff/*" style="width:320px">
-          <button id="applyPathFilter">Apply</button>
-          <button id="clearPathFilter">Clear</button>
         </div>
       </div>
       <section id="recordings">Loading...</section>
