@@ -45,32 +45,42 @@
         <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
           <input type="checkbox" id="skip5xx"> Skip recording 5xx responses
         </label>
-        <label style="margin-left:8px; font-size:13px; display:inline-flex; align-items:center; gap:6px">
-          <input type="text" id="statusFilter" placeholder="Status filter e.g. 200,201,400-499" style="width:220px"> 
-          <button id="applyStatusFilter">Apply</button>
-          <button id="clearStatusFilter">Clear</button>
-        </label>
+        <!-- filters moved to the recordings area -->
         <a id="export" download="recorded_data.json">Export</a>
       </div>
     </header>
   <section id="variantAccordions" style="margin:12px 0"></section>
     <main>
+      <div id="filters" style="display:flex;gap:12px;align-items:center;margin:8px 0">
+        <div style="display:inline-flex;gap:6px;align-items:center">
+          <input type="text" id="statusFilter" placeholder="Status filter e.g. 200,201,400-499" style="width:220px"> 
+          <button id="applyStatusFilter">Apply</button>
+          <button id="clearStatusFilter">Clear</button>
+        </div>
+        <div style="display:inline-flex;gap:6px;align-items:center">
+          <input type="text" id="pathFilter" placeholder="Path filter e.g. GET /bff/consultant or */consultant or /bff/*" style="width:320px">
+          <button id="applyPathFilter">Apply</button>
+          <button id="clearPathFilter">Clear</button>
+        </div>
+      </div>
       <section id="recordings">Loading...</section>
       <div class="detailsSection">
       <section id="detail">
         <div class="detail-block">
           <h3>Raw record</h3>
+          <div style="margin:8px 0; display:flex; gap:8px; align-items:center">
+            <button id="editRawBtn" disabled>Edit Raw Record</button>
+          </div>
           <pre id="detailJson">Select a recording to view details</pre>
         </div>
       </section>
       <section id="parsedRecord">
         <div class="detail-block">
           <h3>Parsed response</h3>
-          <textarea id="parsedJson" rows="20" style="width:100%;font-family:monospace">(click a recorded response to parse JSON here)</textarea>
-          <div style="margin-top:8px">
-            <button id="parsedSave">Save</button>
-            <button id="parsedCancel">Cancel</button>
+          <div style="margin:8px 0; display:flex; gap:8px; align-items:center">
+            <button id="editParsedBtn" disabled>Edit Parsed Response</button>
           </div>
+          <div id="parsedStatus" style="width:100%;font-family:monospace;white-space:pre-wrap">(click a recorded response to parse JSON here)</div>
         </div>
         <div class="detail-block" id="variantsBlock" style="display:none;">
           <h3>Variants</h3>

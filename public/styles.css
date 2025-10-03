@@ -24,11 +24,19 @@ main{display:flex;gap:12px;margin-top:12px}
 #parsedRecord{flex:1;padding:12px;background:#fff;border-radius:6px;max-height:70vh;overflow:auto}
 .node{padding-left:8px;border-left:1px dashed #eee;margin:6px 0}
 .node-header{display:flex;align-items:center;gap:8px}
+.node-header.selected{background:#e8f4ff;border-radius:6px;padding:4px}
 .toggle{width:22px;display:inline-block;text-align:center;color:#666;cursor:pointer;background-color:aliceblue;border:1px solid burlywood;border-radius:12px;height:22px}
 .label{cursor:pointer;padding:4px}
 .label:hover{background:#fafafa}
 .node.collapsed > .children{display:none}
 .badge{margin-left:8px;background:#eef;padding:2px 6px;border-radius:12px;font-size:12px;color:#145}
+
+/* Level badges: small indicators for url/query/body/response positions */
+.level-badge{display:inline-block;margin-left:6px;font-size:11px;padding:2px 6px;border-radius:999px;color:#fff}
+.level-url{background:#6b7280} /* gray */
+.level-query{background:#2563eb} /* blue */
+.level-body{background:#059669} /* green */
+.level-response{background:#9333ea} /* purple */
 
 .node-delete{background:transparent;border:1px solid #f88;color:#900;padding:2px 6px;border-radius:4px;font-size:12px;cursor:pointer}
 

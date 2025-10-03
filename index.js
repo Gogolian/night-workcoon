@@ -2,8 +2,7 @@ import http from 'http';
 import { URL } from 'url';
 import net from 'net';
 import { logProxyDetails } from './logger.js';
-import { readFileSync, createReadStream, statSync } from 'fs';
-import { writeFileSync } from 'fs';
+import { readFileSync, createReadStream, statSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { record, findRecordedResponse, setRuntimeOptions } from './recorder.js';
 import { loadRecordedData, saveDataDebounced, forceSave } from './dataManager.js';
 import { recordedData } from './state.js';
@@ -106,6 +105,50 @@ const proxy = http.createServer((req, res) => {
       try { console.log(`[UI] ${req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'} requested config`); } catch(e){}
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(safe));
+      return;
+    }
+
+    // UI state persistence (store selection, accordion state, tree expanded nodes, etc.)
+    if (req.method === 'GET' && req.url === '/__api/ui-state') {
+      try {
+        const uiDir = path.join(process.cwd(), 'data', 'ui');
+        const stPath = path.join(uiDir, 'state.json');
+        if (!existsSync(stPath)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({}));
+          return;
+        }
+        const txt = readFileSync(stPath, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(txt);
+      } catch (e) {
+        res.writeHead(500); res.end('Error');
+      }
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/__api/ui-state') {
+      const buf = [];
+      req.on('data', c => buf.push(c));
+      req.on('end', () => {
+        try {
+          const incoming = JSON.parse(Buffer.concat(buf).toString());
+          const uiDir = path.join(process.cwd(), 'data', 'ui');
+          if (!existsSync(uiDir)) mkdirSync(uiDir, { recursive: true });
+          const stPath = path.join(uiDir, 'state.json');
+          let existing = {};
+          try { if (existsSync(stPath)) existing = JSON.parse(readFileSync(stPath, 'utf8')); } catch (e) { existing = {}; }
+          // merge arrays/sets and objects shallowly
+          const merged = { ...existing };
+          for (const k of Object.keys(incoming || {})) {
+            if (Array.isArray(incoming[k])) merged[k] = incoming[k];
+            else merged[k] = incoming[k];
+          }
+          writeFileSync(stPath, JSON.stringify(merged, null, 2));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) { res.writeHead(400); res.end('Bad'); }
+      });
       return;
     }
 
@@ -460,6 +503,50 @@ const proxy = http.createServer((req, res) => {
         } catch (e) {
           respondBad();
         }
+      });
+      function respondBad() { res.writeHead(400); res.end('Bad request'); }
+      return;
+    }
+
+    // Replace a recorded variant or raw record object at a selection: { selection: { method,pathParts,queryKey,bodyKey,response }, newRecord: <object> }
+    if (req.method === 'POST' && req.url === '/__api/recording/replace') {
+      const buf = [];
+      req.on('data', c => buf.push(c));
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(buf).toString());
+          const sel = body.selection;
+          const newRecord = body.newRecord;
+          if (!sel || !sel.method || !newRecord || typeof newRecord !== 'object') return respondBad();
+          let node = recordedData;
+          if (!node[sel.method]) return respondBad();
+          node = node[sel.method];
+          for (const p of (sel.pathParts || [])) {
+            if (!node[p]) return respondBad();
+            node = node[p];
+          }
+          const qk = sel.queryKey || 'no_query';
+          if (!node[qk]) return respondBad();
+          node = node[qk];
+          const bk = sel.bodyKey || 'no_body';
+          if (!node[bk]) return respondBad();
+          const map = node[bk];
+          // If selection.response exists, replace that variant key
+          if (sel.response && map.hasOwnProperty(sel.response)) {
+            // Overwrite map[sel.response] with newRecord (ensure required metadata fields exist)
+            const now = new Date().toISOString();
+            newRecord.modifiedAt = now; if (!newRecord.createdAt) newRecord.createdAt = now; if (!newRecord.recordedAt) newRecord.recordedAt = now;
+            map[sel.response] = newRecord;
+          } else {
+            // No response key provided — treat bk as legacy single-record object and replace it
+            node[bk] = newRecord;
+            const now = new Date().toISOString();
+            if (!node[bk].modifiedAt) node[bk].modifiedAt = now; if (!node[bk].createdAt) node[bk].createdAt = now; if (!node[bk].recordedAt) node[bk].recordedAt = now;
+          }
+          saveDataDebounced(recordedData);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) { respondBad(); }
       });
       function respondBad() { res.writeHead(400); res.end('Bad request'); }
       return;
