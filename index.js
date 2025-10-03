@@ -59,8 +59,8 @@ const proxy = http.createServer((req, res) => {
 
     const fullUrl = `${target.protocol}//${target.hostname}:${target.port || (target.protocol === 'https:' ? 443 : 80)}${req.url}`;
 
-    // Let plugins decide whether to proxy or serve a mock
-    const decision = decideProxy({ req, requestBody, config });
+  // Let plugins decide whether to proxy or serve a mock
+  const decision = decideProxy({ req, requestBody, config });
     if (!decision || decision.proxy === undefined) {
       // fallback to default: proxy
     }
@@ -75,7 +75,14 @@ const proxy = http.createServer((req, res) => {
         mh['access-control-allow-headers'] = mh['access-control-allow-headers'] || 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With';
         mh['access-control-allow-credentials'] = mh['access-control-allow-credentials'] || 'true';
         mh['fromNightMock'] = mh['fromNightMock'] || 'REQUEST PROXIED FROM NIGHT WROKOON! ~~~ H-A-P-P-Y C-O-D-I-N-G! ~~~';
-        if (config.logLevel >= 1) console.log(`served from plugin/mock ${decision.mock.statusCode} ${req.method} ${fullUrl}`);
+        // build small indicator string for applied rule / variant and log in pipe-separated format
+        let ruleIndicator = '';
+        try {
+          if (decision.appliedRule && decision.appliedRule.action) ruleIndicator = `${decision.appliedRule.action} rule`;
+          else ruleIndicator = `Else: ${config && config.fallback ? config.fallback : 'Pass Only '}`;
+          if (decision.variant) ruleIndicator += ' | Variant';
+        } catch (e) { ruleIndicator = '' }
+        if (config.logLevel >= 1) console.log(`mocked  | ${ruleIndicator} | ${decision.mock.statusCode} ${req.method} ${fullUrl}`);
         res.writeHead(decision.mock.statusCode || 200, mh);
         res.end(typeof decision.mock.body === 'string' ? decision.mock.body : JSON.stringify(decision.mock.body || {}));
         return;
@@ -108,26 +115,36 @@ const proxy = http.createServer((req, res) => {
       proxyRes.on('end', () => {
         const responseBody = Buffer.concat(responseBodyChunks);
         
-        if (config.logLevel >= 1) {
-            console.log(`proxied ${proxyRes.statusCode} ${req.method} ${fullUrl}`);
+        // ask plugin whether to record (plugins may inspect decision.record)
+        let recordedFlag = false;
+        try {
+          const rec = shouldRecord({ req, requestBody, proxyRes, responseBody, config, decision });
+          if (rec) {
+            // record immediately so log can reflect it
+            try { record(req, requestBody, proxyRes, responseBody); recordedFlag = true; } catch (e) { recordedFlag = false; }
+          }
+        } catch (e) {
+          // on plugin error, fall back to recording via original rule
+          try { record(req, requestBody, proxyRes, responseBody); recordedFlag = true; } catch (err) { recordedFlag = false; }
         }
-        
+
+        if (config.logLevel >= 1) {
+            // include rule indicator for proxied requests and log in pipe-separated format
+            let ruleIndicator = '';
+            try {
+              if (decision && decision.appliedRule && decision.appliedRule.action) ruleIndicator = `${decision.appliedRule.action} rule`;
+              else ruleIndicator = `Else: ${config && config.fallback ? config.fallback : 'Pass Only'}`;
+            } catch (e) { ruleIndicator = ''; }
+            const recPart = recordedFlag ? ' | recorded' : '';
+            console.log(`proxied | ${ruleIndicator}${recPart} | ${proxyRes.statusCode} ${req.method} ${fullUrl}`);
+        }
         if (config.logLevel >= 3 && ['POST', 'PATCH', 'PUT'].includes(req.method.toUpperCase())) {
             console.log(`Request body: ${requestBody.toString()}`);
             console.log(`Response body: ${responseBody.toString()}`);
         }
-        
+
         if (config.logLevel >= 4) {
             logProxyDetails(req, requestBody, proxyRes, responseBody);
-        }
-        
-        // ask plugin whether to record
-        try {
-          const rec = shouldRecord({ req, requestBody, proxyRes, responseBody, config });
-          if (rec) record(req, requestBody, proxyRes, responseBody);
-        } catch (e) {
-          // on plugin error, fall back to recording via original rule
-          try { record(req, requestBody, proxyRes, responseBody); } catch (err) {}
         }
 
         res.writeHead(proxyRes.statusCode, proxyRes.headers);
@@ -146,7 +163,7 @@ const proxy = http.createServer((req, res) => {
         const fallbackResponse = findRecordedResponse(req, requestBody);
         if (fallbackResponse) {
           if (config.logLevel >= 1) {
-            console.log(`served from cache as fallback ${fallbackResponse.statusCode} ${req.method} ${fullUrl}`);
+            console.log(`served from cache as fallback | ${fallbackResponse.statusCode} ${req.method} ${fullUrl}`);
           }
           
           // Filter out potentially problematic headers and ensure CORS headers are set

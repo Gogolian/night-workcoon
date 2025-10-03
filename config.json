@@ -2,8 +2,21 @@
   "port": 8079,
   "targetUrl": "http://localhost:8078/",
   "logLevel": 1,
-  "skip5xx": true,
+  "skip5xx": false,
   "offlineMode": true,
   "recordOnlyMode": false,
-  "acceptingTraffic": true
+  "acceptingTraffic": true,
+  "rules": [
+    {
+      "enabled": true,
+      "pattern": "POST /bff/cms/labels",
+      "action": "Pass Only"
+    },
+    {
+      "enabled": true,
+      "pattern": "*/feature-flag/*",
+      "action": "Return Mock"
+    }
+  ],
+  "fallback": "Pass Only"
 }

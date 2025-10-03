@@ -284,6 +284,41 @@ export function handleApi(req, res, ctx) {
     return;
   }
 
+  // Apply rules to the running server (store in runtime config and persist to config.json)
+  if (req.method === 'POST' && req.url === '/__api/rules/apply') {
+    const buf = [];
+    req.on('data', c => buf.push(c));
+    req.on('end', () => {
+      try {
+        const body = JSON.parse(Buffer.concat(buf).toString());
+        const rules = Array.isArray(body.rules) ? body.rules : null;
+        const fallback = typeof body.fallback === 'string' ? body.fallback : null;
+        if (!rules && !fallback) return respondBad();
+        const confObj = ctx && ctx.config ? ctx.config : {};
+        if (rules) confObj.rules = rules;
+        if (fallback) confObj.fallback = fallback;
+  try { const src = req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'ui'; console.log(`[UI] ${src} applied rules: rules=${Array.isArray(rules)?rules.length:0} fallback=${fallback || 'null'}`); } catch (e) {}
+        // persist to disk (update config.json)
+        try { writeFileSync(path.join(process.cwd(), 'config.json'), JSON.stringify(confObj, null, 2)); } catch (e) {}
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, applied: true }));
+      } catch (e) { respondBad(); }
+    });
+    function respondBad() { res.writeHead(400); res.end('Bad request'); }
+    return;
+  }
+
+  // Return currently-applied rules from runtime config
+  if (req.method === 'GET' && req.url === '/__api/rules/current') {
+    try {
+      const confObj = ctx && ctx.config ? ctx.config : {};
+      const out = { rules: Array.isArray(confObj.rules) ? confObj.rules : [], fallback: confObj.fallback || null };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(out));
+    } catch (e) { res.writeHead(500); res.end('Error'); }
+    return;
+  }
+
   // List saved rules files in data/rules
   if (req.method === 'GET' && req.url === '/__api/rules/list') {
     try {

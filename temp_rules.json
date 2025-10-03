@@ -1,0 +1,6 @@
+{
+  "rules": [
+    { "enabled": true, "pattern": "/bff/cms", "action": "Pass Only" }
+  ],
+  "fallback": "Return Mock"
+}
